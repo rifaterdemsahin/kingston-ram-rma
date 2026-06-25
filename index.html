@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kingston RAM RMA Tracker</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; }
+
+    header {
+      background: linear-gradient(135deg, #e63946 0%, #c1121f 100%);
+      color: white;
+      padding: 28px 32px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    header img { width: 80px; height: 80px; object-fit: contain; border-radius: 12px; background: white; padding: 4px; }
+    header h1 { font-size: 1.8rem; font-weight: 700; }
+    header p { opacity: 0.9; margin-top: 4px; font-size: 0.95rem; }
+
+    .status-bar {
+      background: #fff3cd;
+      border-left: 5px solid #f59f00;
+      padding: 14px 24px;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .status-bar strong { color: #856404; }
+
+    main { max-width: 960px; margin: 0 auto; padding: 32px 16px; display: flex; flex-direction: column; gap: 28px; }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+    .card-header {
+      background: #1a1a2e;
+      color: white;
+      padding: 14px 20px;
+      font-weight: 600;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-body { padding: 20px; }
+
+    /* Case Info Grid */
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .info-item { background: #f8f9fa; border-radius: 8px; padding: 12px 16px; }
+    .info-item label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: #666; display: block; margin-bottom: 4px; }
+    .info-item span { font-weight: 600; font-size: 1rem; color: #1a1a2e; }
+    .info-item .badge { display: inline-block; background: #e63946; color: white; border-radius: 20px; padding: 2px 12px; font-size: 0.8rem; font-weight: 600; }
+
+    /* Timeline */
+    .timeline { position: relative; padding-left: 28px; }
+    .timeline::before { content: ''; position: absolute; left: 8px; top: 6px; bottom: 6px; width: 2px; background: #e0e0e0; }
+    .tl-item { position: relative; margin-bottom: 18px; }
+    .tl-item:last-child { margin-bottom: 0; }
+    .tl-dot {
+      position: absolute;
+      left: -24px;
+      top: 4px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid white;
+      box-shadow: 0 0 0 2px currentColor;
+    }
+    .tl-dot.sent { color: #2196f3; background: #2196f3; }
+    .tl-dot.received { color: #4caf50; background: #4caf50; }
+    .tl-dot.stalled { color: #f59f00; background: #f59f00; }
+    .tl-date { font-size: 0.78rem; color: #888; margin-bottom: 2px; }
+    .tl-subject { font-weight: 600; font-size: 0.9rem; }
+    .tl-snippet { font-size: 0.85rem; color: #555; margin-top: 4px; line-height: 1.5; }
+    .tl-badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 600; margin-left: 8px; vertical-align: middle; }
+    .tl-badge.sent { background: #e3f2fd; color: #1565c0; }
+    .tl-badge.received { background: #e8f5e9; color: #2e7d32; }
+
+    /* Draft email */
+    .draft-box {
+      background: #f8f9ff;
+      border: 1.5px solid #c5cae9;
+      border-radius: 8px;
+      padding: 18px;
+      font-size: 0.9rem;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      font-family: inherit;
+    }
+    .draft-meta { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .draft-meta span { background: #e8eaf6; color: #3949ab; padding: 3px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 500; }
+    .copy-btn {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 10px 22px;
+      background: #e63946;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .copy-btn:hover { background: #c1121f; }
+    .copy-btn:active { transform: scale(0.98); }
+
+    /* Follow-up log */
+    .followup-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .followup-table th { background: #f0f2f5; padding: 10px 14px; text-align: left; font-weight: 600; color: #555; border-bottom: 2px solid #e0e0e0; }
+    .followup-table td { padding: 10px 14px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+    .followup-table tr:last-child td { border-bottom: none; }
+    .followup-table tr:hover td { background: #fafafa; }
+    .status-pending { color: #f59f00; font-weight: 600; }
+    .status-done { color: #4caf50; font-weight: 600; }
+
+    /* Add follow-up */
+    .add-followup { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+    .add-followup input, .add-followup select {
+      padding: 9px 14px;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-family: inherit;
+      flex: 1;
+      min-width: 160px;
+    }
+    .add-followup button {
+      padding: 9px 18px;
+      background: #1a1a2e;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .add-followup button:hover { background: #2d2d4e; }
+
+    /* Next steps */
+    .steps-list { list-style: none; counter-reset: steps; }
+    .steps-list li {
+      counter-increment: steps;
+      padding: 12px 14px 12px 52px;
+      position: relative;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+    .steps-list li:last-child { border-bottom: none; }
+    .steps-list li::before {
+      content: counter(steps);
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 26px;
+      height: 26px;
+      background: #e63946;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.8rem;
+    }
+    .steps-list li strong { color: #e63946; }
+
+    footer { text-align: center; padding: 24px; color: #aaa; font-size: 0.82rem; }
+  </style>
+</head>
+<body>
+
+<header>
+  <img src="Gemini_Generated_Image_13gl513gl513gl51.png" alt="RAM Module" />
+  <div>
+    <h1>Kingston RAM RMA Tracker</h1>
+    <p>ECC Module Fault · Case <strong>#00313852</strong> · info@pexabo.com</p>
+  </div>
+</header>
+
+<div class="status-bar">
+  ⚠️ <strong>Action Required:</strong> Last contact August 2023 — case stalled. New follow-up email needs to be sent to restart the RMA process.
+</div>
+
+<main>
+
+  <!-- Case Summary -->
+  <div class="card">
+    <div class="card-header">📋 Case Summary</div>
+    <div class="card-body">
+      <div class="info-grid">
+        <div class="info-item">
+          <label>Case Number</label>
+          <span><span class="badge">00313852</span></span>
+        </div>
+        <div class="info-item">
+          <label>Kingston Contact</label>
+          <span>eu_technical@kingston.eu</span>
+        </div>
+        <div class="info-item">
+          <label>RAM Model</label>
+          <span>KSM32RD4/32MEI (ECC)</span>
+        </div>
+        <div class="info-item">
+          <label>Motherboard Tested</label>
+          <span>ASUS Pro WS WRX80E-SAGE SE WIFI</span>
+        </div>
+        <div class="info-item">
+          <label>Issue</label>
+          <span>BIOS errors / memory not trained</span>
+        </div>
+        <div class="info-item">
+          <label>Testing Done</label>
+          <span>2 motherboards · 2 CPUs · all slots</span>
+        </div>
+        <div class="info-item">
+          <label>Case Opened</label>
+          <span>7 Aug 2023</span>
+        </div>
+        <div class="info-item">
+          <label>Last Contact</label>
+          <span>14 Aug 2023</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Email History Timeline -->
+  <div class="card">
+    <div class="card-header">📧 Email History</div>
+    <div class="card-body">
+      <div class="timeline">
+
+        <div class="tl-item">
+          <div class="tl-dot sent"></div>
+          <div class="tl-date">24 Apr 2023</div>
+          <div class="tl-subject">Initial RMA enquiry sent <span class="tl-badge sent">Sent</span></div>
+          <div class="tl-snippet">Contacted Kingston about replacing RAM modules that are not working. Email bounced from customerservice@kingston.com — redirected to .eu address.</div>
+        </div>
+
+        <div class="tl-item">
+          <div class="tl-dot sent"></div>
+          <div class="tl-date">25 Apr 2023</div>
+          <div class="tl-subject">Re: Rma of the ram how do i do it? <span class="tl-badge sent">Sent</span></div>
+          <div class="tl-snippet">Sent to customerservice@kingston.eu regarding already RMA'd modules still failing.</div>
+        </div>
+
+        <div class="tl-item">
+          <div class="tl-dot received"></div>
+          <div class="tl-date">25 Apr 2023</div>
+          <div class="tl-subject">Kingston Customer Service response <span class="tl-badge received">Received</span></div>
+          <div class="tl-snippet">Kingston requested: case number, motherboard model, RAM part number, revision, quantity, photos, BIOS version, fault description, full address.</div>
+        </div>
+
+        <div class="tl-item">
+          <div class="tl-dot sent"></div>
+          <div class="tl-date">3 Aug 2023</div>
+          <div class="tl-subject">Detailed fault report sent <span class="tl-badge sent">Sent</span></div>
+          <div class="tl-snippet">Reported: RMA replacement unit not working, 3 sticks work but 1 fails, tested on ASUS WRX80E-SAGE SE WIFI. Photos attached.</div>
+        </div>
+
+        <div class="tl-item">
+          <div class="tl-dot received"></div>
+          <div class="tl-date">7 Aug 2023</div>
+          <div class="tl-subject">Case #00313852 opened <span class="tl-badge received">Received</span></div>
+          <div class="tl-snippet">Kingston assigned case number 00313852 and transferred to EMEA Tech Support.</div>
+        </div>
+
+        <div class="tl-item">
+          <div class="tl-dot received"></div>
+          <div class="tl-date">9 Aug 2023</div>
+          <div class="tl-subject">Tech Support (Stephanie) requests details <span class="tl-badge received">Received</span></div>
+          <div class="tl-snippet">Requested: BIOS version/date, slot configuration, module label photos (KSM32RD8), error code screenshots, individual module test results.</div>
+        </div>
+
+        <div class="tl-item">
+          <div class="tl-dot sent"></div>
+          <div class="tl-date">10 Aug 2023</div>
+          <div class="tl-subject">Video + answers provided <span class="tl-badge sent">Sent</span></div>
+          <div class="tl-snippet">Shared video at rifaterdemsahin.com/2023/08/10/ram-in-wrx80/ with all answers to Stephanie's questions.</div>
+        </div>
+
+        <div class="tl-item">
+          <div class="tl-dot received"></div>
+          <div class="tl-date">14 Aug 2023</div>
+          <div class="tl-subject">Kingston asks for module photo <span class="tl-badge received">Received</span></div>
+          <div class="tl-snippet">Stephanie: "BIOS not up to date — update recommended. Confirm all 4 modules tested individually in all slots. Attach clear photo of non-working module showing label."</div>
+        </div>
+
+        <div class="tl-item">
+          <div class="tl-dot sent"></div>
+          <div class="tl-date">14 Aug 2023</div>
+          <div class="tl-subject">Confirmed individual testing done <span class="tl-badge sent">Sent</span></div>
+          <div class="tl-snippet">Confirmed tested all variations individually — module did not turn on in any slot.</div>
+        </div>
+
+        <div class="tl-item">
+          <div class="tl-dot stalled"></div>
+          <div class="tl-date">Aug 2023 → Jun 2026</div>
+          <div class="tl-subject">⚠️ Case stalled — no further contact</div>
+          <div class="tl-snippet">No response from Kingston or follow-up for ~3 years. Restarting RMA process now with updated evidence (2 motherboards + 2 CPUs tested).</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Draft Email -->
+  <div class="card">
+    <div class="card-header">✉️ Draft Follow-up Email</div>
+    <div class="card-body">
+      <div class="draft-meta">
+        <span>To: eu_technical@kingston.eu</span>
+        <span>Ref: Case #00313852</span>
+        <span>From: info@pexabo.com</span>
+      </div>
+      <div class="draft-box" id="draftText">Subject: Follow-up – Case #00313852 – ECC RAM RMA Request (Restarting Process)
+
+Dear Kingston Technical Support Team,
+
+I am writing to follow up on case number 00313852, which was opened in August 2023 regarding faulty ECC RAM modules (KSM32RD4/32MEI).
+
+The case went silent after my last reply on 14 August 2023, and I would like to restart the RMA process.
+
+Summary of the issue:
+- RAM modules are producing BIOS errors and memory training failures
+- I have now tested the modules across 2 different motherboards and 2 different CPUs
+- Results are consistent: the modules fail to initialize / cause BIOS boot errors on all hardware combinations
+- This conclusively rules out a motherboard or CPU fault
+
+Previously tested hardware:
+- Motherboard: ASUS Pro WS WRX80E-SAGE SE WIFI
+- Testing video: https://rifaterdemsahin.com/2023/08/10/ram-in-wrx80/
+
+I have exhausted all troubleshooting steps. Given the testing across multiple hardware platforms, I believe these modules are defective and require replacement under Kingston's lifetime warranty.
+
+Could you please advise on the next steps to proceed with the RMA?
+
+Kind regards,
+R. Erdem Sahin
+info@pexabo.com</div>
+      <button class="copy-btn" onclick="copyDraft()">📋 Copy Email to Clipboard</button>
+    </div>
+  </div>
+
+  <!-- Follow-up Log -->
+  <div class="card">
+    <div class="card-header">📅 Weekly Follow-up Log</div>
+    <div class="card-body">
+      <table class="followup-table" id="followupTable">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Action Taken</th>
+            <th>Response</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="followupBody">
+          <tr>
+            <td>25 Jun 2026</td>
+            <td>Restarting RMA process — drafting follow-up email</td>
+            <td>—</td>
+            <td class="status-pending">Pending</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="add-followup">
+        <input type="date" id="fuDate" />
+        <input type="text" id="fuAction" placeholder="Action taken..." />
+        <input type="text" id="fuResponse" placeholder="Kingston response..." />
+        <select id="fuStatus">
+          <option value="pending">Pending</option>
+          <option value="done">Done</option>
+        </select>
+        <button onclick="addFollowup()">+ Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Next Steps -->
+  <div class="card">
+    <div class="card-header">✅ Next Steps</div>
+    <div class="card-body">
+      <ul class="steps-list">
+        <li>Send the draft email above to <strong>eu_technical@kingston.eu</strong> referencing case <strong>#00313852</strong></li>
+        <li>If no reply within 5 business days, send a <strong>weekly follow-up</strong> to the same address with the same case number</li>
+        <li>Attach <strong>photos of the defective module labels</strong> (both the working modules and the faulty one) to the first email</li>
+        <li>If email is ignored, escalate via Kingston's <strong>live chat</strong> at kingston.com or call their EMEA support line</li>
+        <li>Log every contact in the <strong>Follow-up Log</strong> above to track progress</li>
+      </ul>
+    </div>
+  </div>
+
+</main>
+
+<footer>Kingston RAM RMA Tracker · Case #00313852 · Last updated 25 Jun 2026</footer>
+
+<script>
+  // Copy draft to clipboard
+  function copyDraft() {
+    const text = document.getElementById('draftText').innerText;
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.querySelector('.copy-btn');
+      btn.textContent = '✅ Copied!';
+      setTimeout(() => btn.textContent = '📋 Copy Email to Clipboard', 2000);
+    });
+  }
+
+  // Follow-up log persistence
+  const STORAGE_KEY = 'kingstonRmaLog';
+
+  function loadLog() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const rows = JSON.parse(saved);
+        rows.forEach(r => appendRow(r.date, r.action, r.response, r.status, false));
+      }
+    } catch(e) {}
+  }
+
+  function saveLog() {
+    const rows = [];
+    document.querySelectorAll('#followupBody tr').forEach(tr => {
+      const cells = tr.querySelectorAll('td');
+      if (cells.length === 4) {
+        rows.push({
+          date: cells[0].textContent,
+          action: cells[1].textContent,
+          response: cells[2].textContent,
+          status: cells[3].textContent.trim().toLowerCase()
+        });
+      }
+    });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
+  }
+
+  function appendRow(date, action, response, status, save) {
+    const tbody = document.getElementById('followupBody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${date}</td>
+      <td>${action}</td>
+      <td>${response || '—'}</td>
+      <td class="status-${status}">${status.charAt(0).toUpperCase() + status.slice(1)}</td>
+    `;
+    tbody.appendChild(tr);
+    if (save) saveLog();
+  }
+
+  function addFollowup() {
+    const date = document.getElementById('fuDate').value || new Date().toLocaleDateString('en-GB');
+    const action = document.getElementById('fuAction').value.trim();
+    const response = document.getElementById('fuResponse').value.trim();
+    const status = document.getElementById('fuStatus').value;
+    if (!action) return;
+    appendRow(date, action, response, status, true);
+    document.getElementById('fuAction').value = '';
+    document.getElementById('fuResponse').value = '';
+  }
+
+  // Set today's date as default
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('fuDate').value = today;
+
+  loadLog();
+</script>
+
+</body>
+</html>
